@@ -59,14 +59,14 @@ async def get_me_info(bot, update):
     )
 
 
-@pyrogram.Client.on_message(pyrogram.filters.command(["start"]))
+@pyrogram.Client.on_message(pyrogram.Filters.command(["start"]))
 async def start(bot, update):
     # logger.info(update)
     TRChatBase(update.from_user.id, update.text, "/start")
     await bot.send_message(
         chat_id=update.chat.id,
         text=Translation.START_TEXT,
-        reply_to_message_id=update.message_id
+        reply_to_message_id=update.message.message_id
     )
 
 
