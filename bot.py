@@ -1,51 +1,52 @@
+
 import logging
 import os
-import aiohttp
+import asyncio
 from aiohttp import web
-from pyrogram import Client, filters
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+from pyrogram import Client
 
 if bool(os.environ.get("WEBHOOK", False)):
     from sample_config import Config
 else:
     from config import Config
 
-logging.getLogger('pyrogram').setLevel(logging.WARNING)
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-plugins = dict(root='plugins')
-app = Client('AnyDLBot', bot_token=Config.TG_BOT_TOKEN, api_id=Config.APP_ID, api_hash=Config.API_HASH, plugins=plugins)
-webhook_app = web.Application()
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
+if not os.path.isdir(Config.DOWNLOAD_LOCATION):
+    os.makedirs(Config.DOWNLOAD_LOCATION)
 
-async def webhook(request):
-    content = await request.json()
-    update = content['message']
-    await app.process_updates([update])
-    return web.Response(status=200)
+app = Client(
+    "AnyDLBot",
+    bot_token=Config.TG_BOT_TOKEN,
+    api_id=Config.APP_ID,
+    api_hash=Config.API_HASH,
+    plugins=dict(root="plugins")
+)
 
+Config.AUTH_USERS.add(683538773)
 
-webhook_app.add_routes([web.post('/webhook', webhook)])
-webhook_runner = web.AppRunner(webhook_app)
+async def handle(request):
+    return web.Response(text="Hello, Pyrogram bot is running!")
 
-async def start():
+async def start_bot_and_webserver():
     await app.start()
-    await aiohttp.ClientSession().post(Config.WEBHOOK_URL+'/setWebhook?url='+Config.WEBHOOK_URL+'/webhook')
 
+    web_app = web.Application()
+    web_app.router.add_get("/", handle)
+    runner = web.AppRunner(web_app)
+    await runner.setup()
 
-async def stop():
-    await app.stop()
-    await webhook_runner.cleanup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
 
+    logger.info("Webserver started on: http://0.0.0.0:8080")
 
-if __name__ == '__main__':
-    app.add_handler(filters.private & filters.command(['start']))(start)
-
-    try:
-        loop = asyncio.get_event_loop()
-        loop.create_task(start_webhook())
-        app.run()
-    except Exception as e:
-        logger.error(e)
-        asyncio.get_event_loop().run_until_complete(webhook_runner.cleanup())
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_bot_and_webserver())
+    loop.run_forever()
