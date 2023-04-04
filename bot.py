@@ -4,10 +4,10 @@ import os
 from aiohttp import web
 
 logging.basicConfig(level=logging.DEBUG,
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(name)
 
-# The secret configuration specific things
+# the secret configuration specific things
 if bool(os.environ.get("WEBHOOK", False)):
     from sample_config import Config
 else:
@@ -16,45 +16,38 @@ else:
 import pyrogram
 logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
-routes = web.RouteTableDef()
-
-# Create Initialization Code (If needed)
-def init():
-    # Create download directory, if not exists
+if name == "__main__":
+    # create download directory, if not exist
     if not os.path.isdir(Config.DOWNLOAD_LOCATION):
         os.makedirs(Config.DOWNLOAD_LOCATION)
 
-@routes.get('/')
-async def hello(request):
-    return web.Response(text="Hello from your Pyrogram+ Aiohttp Bot!")
+    # create aiohttp web server
+    async def handle(request):
+        return web.Response(text="Hello, world")
 
-if __name__ == "__main__":
-    init()
-    # Create a Pyrogram app
-    plugins = dict(root="plugins")
-    app = pyrogram.Client("AnyDLBot",
-                          bot_token=Config.TG_BOT_TOKEN,
-                          api_id=Config.APP_ID,
-                          api_hash=Config.API_HASH,
-                          plugins=plugins)
-    Config.AUTH_USERS.add(784291834)
+    app = web.Application()
+    app.router.add_get('/', handle)
 
-    # Create Aiohttp web server
-    web_app = web.Application()
-    web_app.add_routes(routes)
+    # initialize and run pyrogram bot
+    plugins = dict(
+        root="plugins"
+    )
+    bot = pyrogram.Client(
+        "AnyDLBot",
+        bot_token=Config.TG_BOT_TOKEN,
+        api_id=Config.APP_ID,
+        api_hash=Config.API_HASH,
+        plugins=plugins
+    )
+    Config.AUTH_USERS.add(683538773)
 
-    runner = web.AppRunner(web_app)
-    loop = app.loop
-    loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, '0.0.0.0', Config.PORT)
+    async def on_startup(dp):
+        await bot.start()
 
-    async def start_client():
-        await app.start()
-        await site.start()
+    async def on_shutdown(dp):
+        await bot.stop()
 
-    async def stop_client():
-        await app.stop()
-        await runner.cleanup()
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
 
-    loop.run_until_complete(start_client())
-    loop.run_forever()
+    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
