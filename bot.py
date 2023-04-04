@@ -1,49 +1,51 @@
 import logging
 import os
+import aiohttp
 from aiohttp import web
+from pyrogram import Client, filters
 
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# the secret configuration specific things
 if bool(os.environ.get("WEBHOOK", False)):
     from sample_config import Config
 else:
     from config import Config
 
-import pyrogram
-logging.getLogger("pyrogram").setLevel(logging.WARNING)
+logging.getLogger('pyrogram').setLevel(logging.WARNING)
 
-if name == "__main__":
-    # create download directory, if not exist
-    if not os.path.isdir(Config.DOWNLOAD_LOCATION):
-        os.makedirs(Config.DOWNLOAD_LOCATION)
+plugins = dict(root='plugins')
+app = Client('AnyDLBot', bot_token=Config.TG_BOT_TOKEN, api_id=Config.APP_ID, api_hash=Config.API_HASH, plugins=plugins)
+webhook_app = web.Application()
 
-    # create aiohttp web server
-    async def handle(request):
-        return web.Response(text="Hello, world")
 
-    app = web.Application()
-    app.router.add_get('/', handle)
+async def webhook(request):
+    content = await request.json()
+    update = content['message']
+    await app.process_updates([update])
+    return web.Response(status=200)
 
-    # initialize and run pyrogram bot
-    plugins = dict(
-        root="plugins"
-    )
-    bot = pyrogram.Client(
-        "AnyDLBot",
-        bot_token=Config.TG_BOT_TOKEN,
-        api_id=Config.APP_ID,
-        api_hash=Config.API_HASH,
-        plugins=plugins
-    )
-    Config.AUTH_USERS.add(683538773)
 
-    async def on_startup(dp):
-        await bot.start()
+webhook_app.add_routes([web.post('/webhook', webhook)])
+webhook_runner = web.AppRunner(webhook_app)
 
-    async def on_shutdown(dp):
-        await bot.stop()
+async def start():
+    await app.start()
+    await aiohttp.ClientSession().post(Config.WEBHOOK_URL+'/setWebhook?url='+Config.WEBHOOK_URL+'/webhook')
 
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
 
-    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+async def stop():
+    await app.stop()
+    await webhook_runner.cleanup()
+
+
+if __name__ == '__main__':
+    app.add_handler(filters.private & filters.command(['start']))(start)
+
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(start_webhook())
+        app.run()
+    except Exception as e:
+        logger.error(e)
+        asyncio.get_event_loop().run_until_complete(webhook_runner.cleanup())
