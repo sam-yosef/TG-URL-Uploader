@@ -1,13 +1,10 @@
 
 import logging
 import os
-
 from aiohttp import web
-import pyrogram
-assert pyrogram
 
 logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # The secret configuration specific things
@@ -16,43 +13,48 @@ if bool(os.environ.get("WEBHOOK", False)):
 else:
     from config import Config
 
+import pyrogram
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
-# Create download directory, if not exist
-if not os.path.isdir(Config.DOWNLOAD_LOCATION):
-    os.makedirs(Config.DOWNLOAD_LOCATION)
+routes = web.RouteTableDef()
 
-plugins = dict(
-    root="plugins"
-)
+# Create Initialization Code (If needed)
+def init():
+    # Create download directory, if not exists
+    if not os.path.isdir(Config.DOWNLOAD_LOCATION):
+        os.makedirs(Config.DOWNLOAD_LOCATION)
 
-app = pyrogram.Client(
-    "AnyDLBot",
-    bot_token=Config.TG_BOT_TOKEN,
-    api_id=Config.APP_ID,
-    api_hash=Config.API_HASH,
-    plugins=plugins
-)
-Config.AUTH_USERS.add(784291834)
-
-# Here we begin the aiohttp server
-async def handle(request):
-    return web.Response(text="Hello, world")
-
-app.router.add_get('/', handle)
+@routes.get('/')
+async def hello(request):
+    return web.Response(text="Hello from your Pyrogram+ Aiohttp Bot!")
 
 if __name__ == "__main__":
-    try:
-        import nest_asyncio
+    init()
+    # Create a Pyrogram app
+    plugins = dict(root="plugins")
+    app = pyrogram.Client("AnyDLBot",
+                          bot_token=Config.TG_BOT_TOKEN,
+                          api_id=Config.APP_ID,
+                          api_hash=Config.API_HASH,
+                          plugins=plugins)
+    Config.AUTH_USERS.add(784291834)
 
-        nest_asyncio.apply()
-    except ImportError:
-        pass
+    # Create Aiohttp web server
+    web_app = web.Application()
+    web_app.add_routes(routes)
 
-    import asyncio
+    runner = web.AppRunner(web_app)
+    loop = app.loop
+    loop.run_until_complete(runner.setup())
+    site = web.TCPSite(runner, '0.0.0.0', Config.PORT)
 
-    asyncio.ensure_future(app.start())
+    async def start_client():
+        await app.start()
+        await site.start()
 
-    web.run_app(app, host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+    async def stop_client():
+        await app.stop()
+        await runner.cleanup()
 
-    # This is the closing
-    app.stop()
+    loop.run_until_complete(start_client())
+    loop.run_forever()
