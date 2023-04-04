@@ -1,11 +1,7 @@
-
 import logging
 import os
 from aiohttp import web
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(name)
 
 # the secret configuration specific things
 if bool(os.environ.get("WEBHOOK", False)):
